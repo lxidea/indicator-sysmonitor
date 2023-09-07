@@ -342,16 +342,36 @@ class BaseSensor(object):
 
 
 class NvGPUSensor(BaseSensor):
-    name = 'nvgpu'
+    name = 'nvgpu\d*'
     desc = _('Nvidia GPU utilization')
+    gpus = re.compile("\Anvgpu\d*\Z")
+
+    def check(self, sensor):
+        if self.gpus.match(sensor):
+            gpu_id = int(sensor[5:]) if len(sensor) > 5 else 0
+            result = subprocess.check_output(['nvidia-smi', '--query-gpu=count', '--format=csv'])
+            countc = result.splitlines()[1]
+            count = int(countc)
+            if gpu_id+1 > count:
+                raise ISMError(_("Invalid index of GPUs for current system. Available: {}").format(count))
+            if gpu_id < 0:
+                raise ISMError(_("Invalid index of GPUs."))
+            return True
 
     def get_value(self, sensor):
-        if sensor == 'nvgpu':
-            return "{:02.0f}%".format(self._fetch_gpu())
+        if NvGPUSensor.gpus.match(sensor):
+            gpu_id = int(sensor[5:]) if len(sensor) > 5 else 0
+            return "{:02.0f}%".format(self._fetch_gpu(gpu_id))
+        return None
 
-    def _fetch_gpu(self):
+    def _fetch_gpu(self, gpuid):
+        result = subprocess.check_output(['nvidia-smi', '--query-gpu=count', '--format=csv'])
+        countc = result.splitlines()[1]
+        count = int(countc)
+        if gpuid+1 > count:
+            raise ISMError(_("Invalid index of GPUs for current system. Available: {}").format(count))
         result = subprocess.check_output(['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv'])
-        perc = result.splitlines()[1]
+        perc = result.splitlines()[1+gpuid]
         perc = perc[:-2]
         return int(perc)
 
@@ -385,16 +405,37 @@ class AmdGpu1Sensor(BaseSensor):
 class NvGPUTemp(BaseSensor):
     """Return GPU temperature expressed in Celsius
     """
-    name = 'nvgputemp'
+    name = 'nvgputemp\d*'
     desc = _('Nvidia GPU Temperature')
+    gpus = re.compile("\Anvgputemp\d*\Z")
+
+    def check(self, sensor):
+        if self.gpus.match(sensor):
+            gpu_id = int(sensor[9:]) if len(sensor) > 9 else 0
+            result = subprocess.check_output(['nvidia-smi', '--query-gpu=count', '--format=csv'])
+            countc = result.splitlines()[1]
+            count = int(countc)
+            if gpu_id+1 > count:
+                raise ISMError(_("Invalid index of GPUs for current system. Available: {}").format(count))
+            if gpu_id < 0:
+                raise ISMError(_("Invalid index of GPUs."))
+            return True
 
     def get_value(self, sensor):
         # degrees symbol is unicode U+00B0
-        return "{}\u00B0C".format(self._fetch_gputemp())
+        if NvGPUTemp.gpus.match(sensor):
+            gpu_id = int(sensor[9:]) if len(sensor) > 9 else 0
+            return "{}\u00B0C".format(self._fetch_gputemp(gpu_id))
+        return None
 
-    def _fetch_gputemp(self):
+    def _fetch_gputemp(self, gpuid):
+        result = subprocess.check_output(['nvidia-smi', '--query-gpu=count', '--format=csv'])
+        countc = result.splitlines()[1]
+        count = int(countc)
+        if gpuid+1 > count:
+            raise ISMError(_("Invalid index of GPUs for current system. Available: {}").format(count))
         result = subprocess.check_output(['nvidia-smi', '--query-gpu=temperature.gpu', '--format=csv'])
-        perc = result.splitlines()[1]
+        perc = result.splitlines()[1+gpuid]
         return int(perc)
 
 
